@@ -1,18 +1,18 @@
 Modality,Metric,Baseline (Before),Preprocessed (After),Delta,Relative Improvement
-1. Tabular,Accuracy,0.73,0.6467,-0.0833,-11.4%
-1. Tabular,Precision,0.5357,0.4017,-0.1340,-25.0%
-1. Tabular,Recall,0.1807,0.5663,+0.3855,+213.3%
-1. Tabular,F1-Score (Macro),0.5523,0.6025,+0.0502,+9.1%
-1. Tabular,F1-Score (Minority),0.2703,0.47,+0.1997,+73.9%
-1. Tabular,ROC-AUC,0.6588,0.6765,+0.0178,+2.7%
-2. Text,Accuracy,1.0,1.0,+0.0000,+0.0%
-2. Text,Precision,1.0,1.0,+0.0000,+0.0%
-2. Text,Recall,1.0,1.0,+0.0000,+0.0%
-2. Text,F1-Score (Macro),1.0,1.0,+0.0000,+0.0%
-2. Text,F1-Score (Minority),1.0,1.0,+0.0000,+0.0%
-2. Text,ROC-AUC,1.0,1.0,+0.0000,+0.0%
-3. Image,Accuracy,0.7333,0.7,-0.0333,-4.5%
-3. Image,Precision,0.7235,0.688,-0.0355,-4.9%
-3. Image,Recall,0.7333,0.7,-0.0333,-4.5%
-3. Image,F1-Score (Macro),0.7249,0.6864,-0.0384,-5.3%
-3. Image,Feature Dimensions,12288.0,54.0,-12234.0000,-99.6%
+1. Tabular,Accuracy,0.8041,0.7825,-0.0216,-2.7%
+1. Tabular,Precision,0.664,0.5857,-0.0783,-11.8%
+1. Tabular,Recall,0.5289,0.6146,+0.0857,+16.2%
+1. Tabular,F1-Score (Macro),0.7301,0.7252,-0.0049,-0.7%
+1. Tabular,F1-Score (Minority),0.5888,0.5998,+0.0110,+1.9%
+1. Tabular,ROC-AUC,0.8378,0.837,-0.0008,-0.1%
+2. Text,Accuracy,0.9034,0.9596,+0.0562,+6.2%
+2. Text,Precision,0.9143,0.9597,+0.0454,+5.0%
+2. Text,Recall,0.9106,0.9675,+0.0569,+6.3%
+2. Text,F1-Score (Macro),0.9023,0.9591,+0.0567,+6.3%
+2. Text,F1-Score (Minority),0.9124,0.9636,+0.0511,+5.6%
+2. Text,ROC-AUC,0.9037,0.9877,+0.0840,+9.3%
+3. Image,Accuracy,1.0,0.9926,-0.0074,-0.7%
+3. Image,Precision,1.0,0.9926,-0.0074,-0.7%
+3. Image,Recall,1.0,0.9926,-0.0074,-0.7%
+3. Image,F1-Score (Macro),1.0,0.9925,-0.0075,-0.7%
+3. Image,Feature Dimensions,2352.0,21.0,-2331.0000,-99.1%

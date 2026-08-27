@@ -199,9 +199,14 @@ def generate_all_report_visuals(tabular_res: dict, text_res: dict, image_res: di
     plot_before_vs_after_benchmarks(master_df)
     
     # Load raw tabular for scaling demo
-    df_raw = pd.read_csv("data/tabular/customer_churn_raw.csv")
-    plot_tabular_scaling_and_outliers(df_raw, num_col="monthly_charges")
-    
+    if os.path.exists("data/tabular/telco_churn_raw.csv"):
+        df_raw = pd.read_csv("data/tabular/telco_churn_raw.csv")
+        num_col = "MonthlyCharges" if "MonthlyCharges" in df_raw.columns else df_raw.select_dtypes(include=[np.number]).columns[0]
+    else:
+        df_raw = pd.read_csv("data/tabular/customer_churn_raw.csv")
+        num_col = "monthly_charges" if "monthly_charges" in df_raw.columns else df_raw.select_dtypes(include=[np.number]).columns[0]
+
+    plot_tabular_scaling_and_outliers(df_raw, num_col=num_col)
     plot_image_pca_and_reconstruction(image_res)
     plot_confusion_matrices(tabular_res, text_res, image_res)
     print("All visual reports generated in 'reports/'!")

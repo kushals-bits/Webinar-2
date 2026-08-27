@@ -168,7 +168,7 @@ def run_image_pipeline(root_dir="data/image/raw", target_size=(28, 28), n_compon
     }
 
     print(f"  Image | Baseline: Logistic Regression (raw {X_train_raw_arr.shape[1]} dims) "
-          f"→ Preprocessed: SVM RBF ({X_train_pca_sc.shape[1]} PCA dims)")
+          f"-> Preprocessed: SVM RBF ({X_train_pca_sc.shape[1]} PCA dims)")
 
     os.makedirs("data/image/processed", exist_ok=True)
     np.save("data/image/processed/image_pca_features.npy", X_train_pca)

@@ -129,7 +129,7 @@ def run_text_pipeline(csv_path="data/text/newsgroups_raw.csv",
         "model_name": "LinearSVC (Calibrated, Cleaned TF-IDF)"
     }
 
-    print(f"  Text | Baseline: SGD Classifier → Preprocessed: LinearSVC (Calibrated)")
+    print(f"  Text | Baseline: SGD Classifier -> Preprocessed: LinearSVC (Calibrated)")
     print(f"  Top TF-IDF keywords: {', '.join(tfidf.get_top_keywords(clean_train, top_n=5)['term'].tolist())}")
 
     # Save cleaned output

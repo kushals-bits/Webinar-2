@@ -190,7 +190,7 @@ def run_tabular_pipeline(csv_path="data/tabular/telco_churn_raw.csv", random_sta
     preprocessed_metrics = _eval_metrics(y_test, y_pred_proc, y_proba_proc)
     preprocessed_metrics["model_name"] = model_name
 
-    print(f"  Tabular | Baseline: {baseline_metrics['model_name']} → Preprocessed: {model_name}")
+    print(f"  Tabular | Baseline: {baseline_metrics['model_name']} -> Preprocessed: {model_name}")
 
     # Save cleaned output
     os.makedirs("data/tabular", exist_ok=True) if not os.path.exists("data/tabular") else None

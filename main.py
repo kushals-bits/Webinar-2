@@ -62,7 +62,7 @@ def main():
     profile = profile_dataframe(df_tabular_raw, target_col="Churn")
     print_profiling_report(profile)
 
-    print("\nRunning: Cleaning → One-Hot/Ordinal Encoding → RobustScaling → SMOTE → XGBoost...")
+    print("\nRunning: Cleaning -> One-Hot/Ordinal Encoding -> RobustScaling -> SMOTE -> XGBoost...")
     tabular_results = run_tabular_pipeline(TABULAR_CSV)
     print(f"Model trained: {tabular_results['model_name']}")
 
@@ -70,10 +70,10 @@ def main():
     # TRACK 2: TEXT PREPROCESSING (20 Newsgroups + LinearSVC)
     # ─────────────────────────────────────────────────────────────────
     print("\n" + "=" * 90)
-    print(">>> TRACK 2: TEXT — 20 Newsgroups (sci.med vs alt.atheism)")
+    print(">>> TRACK 2: TEXT - 20 Newsgroups (sci.med vs alt.atheism)")
     print("    Dataset: Real internet forum posts | Algorithm: LinearSVC vs SGD Classifier")
     print("=" * 90)
-    print("Running: Cleaning → TF-IDF (1,2)-grams → Numerical Features → SMOTE → LinearSVC...")
+    print("Running: Cleaning -> TF-IDF (1,2)-grams -> Numerical Features -> SMOTE -> LinearSVC...")
     text_results = run_text_pipeline(TEXT_CSV)
     print("Top 10 TF-IDF Keywords:")
     print(text_results["tfidf_top_keywords"].to_string(index=False))
@@ -82,10 +82,10 @@ def main():
     # TRACK 3: IMAGE PREPROCESSING (MNIST + SVM RBF)
     # ─────────────────────────────────────────────────────────────────
     print("\n" + "=" * 90)
-    print(">>> TRACK 3: IMAGE — MNIST Handwritten Digits (0, 1, 2)")
+    print(">>> TRACK 3: IMAGE - MNIST Handwritten Digits (0, 1, 2)")
     print("    Dataset: Real handwritten digits | Algorithm: SVM RBF + KNN vs Logistic Regression")
     print("=" * 90)
-    print("Running: Loading → Resize → [0,1] Normalization → PCA → SVM RBF + KNN...")
+    print("Running: Loading -> Resize -> [0,1] Normalization -> PCA -> SVM RBF + KNN...")
     image_results = run_image_pipeline(IMAGE_DIR)
     pca_summary = image_results["image_pca"].get_variance_summary(top_k=5)
     print("Top PCA Components Variance:")

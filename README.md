@@ -1,6 +1,6 @@
 # Webinar 2: Data Preprocessing Masterclass
 
-A production-grade, modular, and educational repository implementing end-to-end data preprocessing pipelines across **Tabular**, **Text (NLP)**, and **Image (CV)** modalities, with comprehensive evaluation benchmarks comparing model performance **Before vs. After** preprocessing.
+A production-grade, modular, and educational repository implementing end-to-end data preprocessing pipelines across **Tabular**, **Text (NLP)**, and **Image (CV)** modalities using **real-world practical datasets** and **modern ML/NLP algorithms** (different from Webinar 1), with comprehensive evaluation benchmarks comparing model performance **Before vs. After** preprocessing.
 
 ---
 
@@ -24,7 +24,7 @@ This repository directly implements the three-column preprocessing architecture:
 | • Encoding      |         | • TF-IDF        |         | • Resize        |
 | • Scaling       |         | • Numerical Feat|         | • Normalize     |
 | • Imbalance     |         | • Imbalance     |         | • PCA           |
-| • Train Model   |         +--------+--------+         | • Reduced Feat  |
+| • Train (XGBoost|         +--------+--------+         | • Reduced Feat  |
 +--------+--------+                  |                  +--------+--------+
          |                           +-----------+               |
          |                                       |               |
@@ -43,43 +43,49 @@ This repository directly implements the three-column preprocessing architecture:
 
 ---
 
-## 🚀 Key Highlights & Modules
+## 🔬 Real Practical Datasets & Modern Algorithms
 
-### 1. 📊 Tabular Preprocessing (`src/tabular/`)
-* **Profiling (`profiling.py`)**: Data health diagnostics, missing value rates, skewness/kurtosis analysis, and dual outlier detection via **IQR (Interquartile Range)** and **Z-score**.
-* **Encoding (`encoding.py`)**: Cleaning noisy strings, handling unphysical entries, applying **One-Hot Encoding** on nominal categories and **Ordinal Encoding** on ranked categories.
-* **Scaling (`scaling.py`)**: Comparative analysis between **StandardScaler**, **MinMaxScaler**, and **RobustScaler** (median/IQR based, immune to extreme outlier distortion).
-* **Imbalance Handling (`imbalance.py`)**: **SMOTE** (Synthetic Minority Over-sampling Technique) to rebalance minority classes without duplicate over-reliance.
-* **Model Training (`model_trainer.py`)**: Comparing unscaled/imbalanced baseline Logistic Regression against preprocessed Random Forest / Gradient Boosting.
-
-### 2. 💬 Text (NLP) Preprocessing (`src/text/`)
-* **Cleaning (`cleaning.py`)**: Multi-stage cleaning stripping HTML tags (`<br/>`, `<b>`), unescaping HTML entities, regex URL/email removal, contraction expansion (`can't` $\to$ `cannot`), punctuation stripping, lowercasing, and stopword filtering.
-* **TF-IDF Vectorization (`vectorization.py`)**: Unigram + bigram extraction with sublinear term frequency scaling ($1 + \log(\text{tf})$) and corpus frequency pruning (`min_df`/`max_df`).
-* **Numerical Feature Engineering (`feature_engineering.py`)**: Extracting statistical and linguistic metadata: character length, word count, uppercase shouting ratio, punctuation density, and lexicon sentiment polarity.
-* **Imbalance (`imbalance.py`)**: SMOTE on combined sparse TF-IDF and dense linguistic features.
-
-### 3. 🖼️ Image (Computer Vision) Preprocessing (`src/image/`)
-* **Loading (`loading.py`)**: Recursive class directory scanning, RGB color space validation, and batch array conversions.
-* **Resizing (`resizing.py`)**: Aspect-ratio preserving letterboxing (padding onto centered canvas) vs direct scaling.
-* **Normalization (`normalization.py`)**: Pixel intensity normalization $[0, 255] \to [0.0, 1.0]$ and channel-wise Z-score standardization.
-* **PCA Dimensionality Reduction (`pca_reduction.py`)**: Dimensionality reduction from high-dimensional raw pixel space ($64 \times 64 \times 3 = 12,288$ dims) down to top principal components retaining $95\%$ variance ($\sim 50$ dims), achieving **$>99\%$ feature compression** while preserving classification performance.
-* **Reconstruction**: Visualizing inverse PCA reconstruction back to image space.
-
-### 4. 📈 Downstream Evaluation & Before vs After Benchmarking (`src/evaluation/`)
-* **Metrics Suite (`metrics.py`)**: Accuracy, Balanced Accuracy, Precision, Recall, F1-Score (Macro & Minority), ROC-AUC, and Confusion Matrices.
-* **Comparison Engine (`comparison.py`)**: Calculates metric deltas ($\Delta$) and percentage relative improvements across all modalities.
-* **Visualizer (`visualizer.py`)**: Generates high-resolution comparative figures in `reports/`.
+| Modality | Real Practical Dataset | Baseline Algorithm | Preprocessed Algorithm (Webinar 2) |
+| :--- | :--- | :--- | :--- |
+| **Tabular** | **IBM Telco Customer Churn** (7,043 real customer accounts) | Logistic Regression (naive, unscaled) | **XGBoost Classifier** (Gradient Boosted Trees) + SMOTE |
+| **Text** | **20 Newsgroups** (1,780 real internet forum posts: `sci.med` vs `alt.atheism`) | SGD Classifier (raw Bag-of-Words) | **LinearSVC (Support Vector Machine)** + TF-IDF (1,2) + Linguistic Features |
+| **Image** | **Handwritten Digits** (537 real human handwriting images: Digits 0, 1, 2) | Logistic Regression (2,352 raw pixels) | **SVM (RBF Kernel)** & **KNN (k=5)** on 21 PCA dimensions |
 
 ---
 
-## 📊 Before vs After Benchmark Summary
+## 🚀 Key Highlights & Modules
+
+### 1. 📊 Tabular Preprocessing (`src/tabular/`)
+* **Profiling (`profiling.py`)**: Data health diagnostics, missing value rates (whitespace detection in `TotalCharges`), skewness/kurtosis analysis, and dual outlier detection via **IQR** and **Z-score**.
+* **Encoding (`encoding.py`)**: One-Hot Encoding for nominal columns (`PaymentMethod`, `InternetService`, `TechSupport`) and Ordinal Encoding for ranked contracts (`Month-to-month < One year < Two year`).
+* **Scaling (`scaling.py`)**: Comparative analysis between **StandardScaler**, **MinMaxScaler**, and **RobustScaler** (median/IQR based, immune to extreme outlier distortion).
+* **Imbalance (`imbalance.py`)**: **SMOTE** (Synthetic Minority Over-sampling Technique) to rebalance the ~27% churn minority class.
+* **Model Training (`model_trainer.py`)**: Training **XGBoost Classifier** with early stopping / tree regularization on preprocessed features.
+
+### 2. 💬 Text (NLP) Preprocessing (`src/text/`)
+* **Cleaning (`cleaning.py`)**: Multi-stage regex cleaning stripping headers, email fragments, quotation markers, contractions (`won't` $\to$ `will not`), punctuation, lowercasing, and stopwords.
+* **TF-IDF Vectorization (`vectorization.py`)**: Unigram + bigram extraction with sublinear term frequency scaling ($1 + \log(\text{tf})$) and document frequency cutoffs.
+* **Numerical Feature Engineering (`feature_engineering.py`)**: Extracting statistical and linguistic metadata: character length, word count, uppercase shouting ratio, punctuation density, and lexicon sentiment polarity.
+* **Imbalance (`imbalance.py`)**: Training **LinearSVC (SVM)** with Platt scaling probability calibration.
+
+### 3. 🖼️ Image (Computer Vision) Preprocessing (`src/image/`)
+* **Loading (`loading.py`)**: Class directory scanning and RGB image tensor conversion.
+* **Resizing (`resizing.py`)**: Aspect-ratio preserving letterboxing (padding onto centered canvas) vs direct scaling.
+* **Normalization (`normalization.py`)**: Pixel intensity normalization $[0, 255] \to [0.0, 1.0]$ and channel-wise Z-score standardization.
+* **PCA Dimensionality Reduction (`pca_reduction.py`)**: Dimensionality reduction from 2,352 raw pixels down to **21 principal components** retaining 95% cumulative variance — achieving **99.1% feature compression**!
+* **Modeling**: Training **SVM with RBF kernel** and **KNN (k=5)** on compact PCA features.
+
+---
+
+## 📊 Benchmark Summary (Before vs After Preprocessing)
 
 | Modality | Key Metric | Baseline (Before) | Preprocessed (After) | Delta ($\Delta$) | Impact / Takeaway |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Tabular** | Recall (Churners) | 18.07% | **56.63%** | **+38.56%** | SMOTE & Robust Scaling boost minority detection by **+213%** |
-| **Tabular** | F1-Score (Macro) | 0.5523 | **0.6025** | **+0.0502** | Balanced overall performance across classes |
-| **Text** | Cleanliness | Noisy HTML/URLs | **Clean TF-IDF + Feats** | - | Structured features enable robust NLP generalization |
-| **Image** | Feature Dimensions | 12,288 dims | **54 dims** | **-12,234 dims** | **99.6% Dimensionality Reduction** via PCA with high retention |
+| **Tabular** (IBM Telco Churn) | Churner Recall | 52.89% | **61.46%** | **+8.57%** | SMOTE & XGBoost boost minority churn detection by **+16.2%** |
+| **Tabular** (IBM Telco Churn) | F1-Score (Minority) | 0.5888 | **0.5998** | **+0.0110** | Balanced identification of at-risk customers |
+| **Text** (20 Newsgroups) | Accuracy | 90.34% | **95.96%** | **+5.62%** | Cleaned TF-IDF + LinearSVC boosts accuracy to **~96%** |
+| **Text** (20 Newsgroups) | ROC-AUC | 0.9037 | **0.9877** | **+0.0840** | **+9.3% relative boost** in discriminative capability |
+| **Image** (Handwritten Digits) | Feature Dimensions | 2,352 dims | **21 dims** | **-2,331 dims** | **99.1% Dimensionality Reduction** via PCA with **99.26% accuracy** |
 
 ---
 
@@ -88,67 +94,38 @@ This repository directly implements the three-column preprocessing architecture:
 ```
 Webinar 2/
 ├── README.md                          # Repository documentation & guide
-├── requirements.txt                   # Project dependencies
+├── requirements.txt                   # Project dependencies (includes xgboost, lightgbm)
 ├── .gitignore                         # Git exclusion rules
 ├── main.py                            # Master script executing all pipelines & generating reports
 ├── input_image.jpeg                   # Workflow architecture reference diagram
 │
 ├── data/
 │   ├── tabular/
-│   │   ├── customer_churn_raw.csv     # Raw tabular data with missingness, skew & imbalance
-│   │   └── customer_churn_processed.csv # Cleaned & scaled tabular dataset
+│   │   └── telco_churn_raw.csv        # Real IBM Telco Customer Churn (7,043 rows)
 │   ├── text/
-│   │   ├── product_reviews_raw.csv    # Raw reviews with HTML, URLs, noise & emojis
-│   │   └── product_reviews_clean.csv  # Tokenized and cleaned text reviews
+│   │   ├── newsgroups_raw.csv         # Real 20 Newsgroups posts (1,780 documents)
+│   │   └── newsgroups_clean.csv       # Cleaned text corpus
 │   └── image/
-│       ├── raw/                       # Multi-class raw images of varying dimensions
-│       └── processed/                 # Normalized and PCA-reduced feature arrays
+│       ├── raw/                       # Real handwritten digit images (classes 0, 1, 2)
+│       └── processed/                 # PCA-reduced feature matrices
 │
 ├── notebooks/
-│   ├── 01_tabular_preprocessing.ipynb # Interactive Tabular profiling, encoding, scaling & SMOTE
-│   ├── 02_text_preprocessing.ipynb    # Interactive Text cleaning, TF-IDF & linguistic engineering
-│   ├── 03_image_preprocessing.ipynb   # Interactive Image loading, resizing, normalization & PCA
+│   ├── 01_tabular_preprocessing.ipynb # Interactive Tabular profiling, encoding, scaling, SMOTE & XGBoost
+│   ├── 02_text_preprocessing.ipynb    # Interactive Text cleaning, TF-IDF, features & LinearSVC
+│   ├── 03_image_preprocessing.ipynb   # Interactive Image loading, resizing, normalization, PCA & SVM RBF
 │   └── 04_end_to_end_webinar2.ipynb   # Master end-to-end demo comparing Before vs After
 │
 ├── src/
-│   ├── __init__.py
-│   ├── tabular/
-│   │   ├── __init__.py
-│   │   ├── profiling.py               # Profiling, missingness, IQR/Z-score outlier detection
-│   │   ├── encoding.py                # OneHot, Ordinal, and dirty string cleaning
-│   │   ├── scaling.py                 # StandardScaler, MinMaxScaler, RobustScaler
-│   │   ├── imbalance.py               # SMOTE and class weighting
-│   │   └── model_trainer.py           # Baseline vs Preprocessed tabular modeling
-│   │
-│   ├── text/
-│   │   ├── __init__.py
-│   │   ├── cleaning.py                # HTML stripping, regex normalization, contractions, stopwords
-│   │   ├── vectorization.py           # TF-IDF unigram+bigram vectorizer
-│   │   ├── feature_engineering.py     # Text length, uppercase ratio, punctuation, sentiment lexicon
-│   │   └── imbalance.py               # Text classification pipeline & evaluation
-│   │
-│   ├── image/
-│   │   ├── __init__.py
-│   │   ├── loading.py                 # RGB dataset directory loader
-│   │   ├── resizing.py                # Direct and aspect-preserving letterboxing
-│   │   ├── normalization.py           # [0,1] normalization and channel standardization
-│   │   └── pca_reduction.py           # PCA variance analysis, reconstruction & classifier
-│   │
-│   ├── evaluation/
-│   │   ├── __init__.py
-│   │   ├── metrics.py                 # Classification metrics suite
-│   │   ├── comparison.py              # Before vs After delta calculation
-│   │   └── visualizer.py              # Publication-grade visual plots
-│   │
-│   └── data_generators/
-│       ├── __init__.py
-│       ├── generate_all_datasets.py   # Synthetic data generators for all 3 modalities
-│       └── build_notebooks.py         # Automated notebook generation script
+│   ├── tabular/                       # Profiling, Encoding, Scaling, SMOTE, Model Trainer (XGBoost)
+│   ├── text/                          # Cleaning, TF-IDF, Numerical Features, Imbalance, LinearSVC
+│   ├── image/                         # Loading, Resizing, Normalization, PCA Reduction, SVM RBF + KNN
+│   ├── evaluation/                    # Metrics, Comparison, Visualizer
+│   └── data_generators/               # Real Dataset Downloader & Notebook Generators
 │
 └── reports/
     ├── master_before_vs_after_metrics.csv # Exported comparison metrics
-    ├── before_vs_after_benchmarks.png     # Grouped bar charts
-    ├── tabular_scaling_and_outliers.png   # Scaler distribution histograms
+    ├── before_vs_after_benchmarks.png     # Grouped bar charts across all modalities
+    ├── tabular_scaling_and_outliers.png   # Scaler distribution comparison
     ├── image_pca_and_reconstruction.png   # Scree plot & image reconstruction
     └── confusion_matrices_comparison.png  # Confusion matrices before vs after
 ```
@@ -159,17 +136,10 @@ Webinar 2/
 
 ### 1. Installation
 
-Clone the repository and install dependencies:
-
 ```bash
 # Clone the repository
-git clone <repository_url>
+git clone https://github.com/kushals-bits/Webinar-2.git
 cd "Webinar 2"
-
-# (Optional) Create and activate virtual environment
-python -m venv venv
-venv\Scripts\activate      # On Windows
-source venv/bin/activate    # On Linux/macOS
 
 # Install dependencies
 pip install -r requirements.txt
@@ -177,7 +147,7 @@ pip install -r requirements.txt
 
 ### 2. Run the End-to-End Pipeline
 
-Execute the master CLI pipeline to run all three modalities, print summary tables, and save visual reports:
+Execute the master CLI pipeline:
 
 ```bash
 python main.py
@@ -185,34 +155,12 @@ python main.py
 
 ### 3. Launch Interactive Notebooks
 
-To explore the step-by-step interactive demonstrations:
-
 ```bash
 jupyter notebook
 ```
 
 Navigate to `notebooks/` and open:
-* `01_tabular_preprocessing.ipynb` — Tabular Data Deep Dive
-* `02_text_preprocessing.ipynb` — NLP Text Cleaning & Feature Engineering
-* `03_image_preprocessing.ipynb` — Computer Vision & PCA Dimensionality Reduction
+* `01_tabular_preprocessing.ipynb` — Tabular Preprocessing & XGBoost
+* `02_text_preprocessing.ipynb` — NLP Cleaning & LinearSVC (SVM)
+* `03_image_preprocessing.ipynb` — Computer Vision, PCA & SVM RBF
 * `04_end_to_end_webinar2.ipynb` — Unified Master Demonstration
-
----
-
-## 🖼️ Generated Visual Reports
-
-All figures are automatically generated into the `reports/` folder:
-
-1. **`reports/before_vs_after_benchmarks.png`**: Side-by-side performance comparison across all modalities.
-2. **`reports/tabular_scaling_and_outliers.png`**: Visual comparison showing how RobustScaler avoids outlier distortion.
-3. **`reports/image_pca_and_reconstruction.png`**: PCA scree plot and comparison between original normalized images and reconstructed images.
-4. **`reports/confusion_matrices_comparison.png`**: Baseline vs Preprocessed confusion matrices across Tabular, Text, and Image tasks.
-
----
-
-## 🎓 Educational Takeaways
-
-1. **Garbage In, Garbage Out**: Raw data contains missingness, noise, and severe class imbalance that significantly degrade baseline classifiers.
-2. **Proper Scaling Matters**: `StandardScaler` and `MinMaxScaler` are sensitive to extreme outliers; `RobustScaler` (median & IQR) ensures stability.
-3. **Imbalance Mitigation**: Measuring accuracy alone on imbalanced datasets is misleading. SMOTE and class-weighting drastically elevate **Recall** and **F1-Score** on critical minority classes.
-4. **Dimensionality Reduction**: In computer vision, PCA reduces high-dimensional pixel matrices by $>99\%$ while preserving core variance and structure for downstream learning.
