@@ -1,15 +1,23 @@
 """
-Text Imbalance & Modeling Pipeline Module
-Trains baseline text classifier vs fully preprocessed NLP pipeline.
+Text NLP Pipeline Module — Webinar 2 (UPDATED)
+Algorithms used (DIFFERENT from Webinar 1):
+  - Webinar 1: Basic Logistic Regression on tokenized text
+  - Webinar 2: LinearSVC + Complement Naive Bayes + SGD Classifier
+
+Dataset: 20 Newsgroups (real internet forum posts — sci.med vs alt.atheism)
 """
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+from sklearn.naive_bayes import ComplementNB
+from sklearn.linear_model import SGDClassifier
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.preprocessing import RobustScaler
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                             f1_score, roc_auc_score, confusion_matrix)
 
 from .cleaning import batch_clean_texts
 from .vectorization import TFIDFProcessor
@@ -17,89 +25,94 @@ from .feature_engineering import extract_numerical_text_features
 from ..tabular.imbalance import balance_dataset
 
 
-def run_text_pipeline(csv_path="data/text/product_reviews_raw.csv", text_col="review_text", target_col="sentiment", random_state=42):
+def run_text_pipeline(csv_path="data/text/newsgroups_raw.csv",
+                      text_col="raw_text", target_col="target", random_state=42):
     """
-    Executes the entire Text Preprocessing & Modeling Pipeline:
-    1. Loads raw text data
-    2. Builds Baseline Model:
-       - Raw text directly passed to basic Bag-of-Words (CountVectorizer)
-       - No HTML stripping, no lowercasing/stopword removal, no imbalance handling
-       - Standard Logistic Regression
-    3. Runs Full Preprocessed Pipeline:
-       - Text Cleaning (HTML, URLs, contractions, stopwords, punctuation)
-       - TF-IDF Vectorization with unigrams + bigrams and sublinear term frequency
-       - Numerical Linguistic Feature Extraction & Scaling
-       - Feature Concatenation (TF-IDF + Scaled Numerical Features)
-       - Class Imbalance Handling with SMOTE
-    4. Evaluates and returns metrics comparison.
+    20 Newsgroups (sci.med vs alt.atheism) — Full NLP pipeline with SVM/NB algorithms.
+
+    ALGORITHMS (Webinar 2 — different from Webinar 1's Logistic Regression):
+    ─────────────────────────────────────────────────────────────────────────────────
+    Baseline:     Bag-of-Words (raw text, uncleaned) + CountVectorizer
+                  → SGD Classifier (Stochastic Gradient Descent)
+    Preprocessed: Cleaned text + TF-IDF (1,2)-grams
+                  → LinearSVC (Support Vector Machine with linear kernel)
+                     calibrated with Platt scaling for probability output
+    ─────────────────────────────────────────────────────────────────────────────────
+
+    Steps:
+    1. Load real 20 Newsgroups corpus (internet forum posts, raw noise)
+    2. Baseline: raw CountVectorizer → SGD Classifier
+    3. Preprocessed: Clean → TF-IDF bigrams → Numerical features → SMOTE → LinearSVC
     """
     df = pd.read_csv(csv_path)
-    
-    # Map target: 'Positive' -> 1, 'Negative' -> 0
-    y = df[target_col].map({"Positive": 1, "Negative": 0})
-    texts = df[text_col]
+    texts = df[text_col].fillna("")
+    y = df[target_col]
+
+    # Map target names for display
+    classes = sorted(y.unique())
+    class_names = ["sci.med", "alt.atheism"] if set(classes) == {0, 1} else [str(c) for c in classes]
 
     X_train_raw, X_test_raw, y_train, y_test = train_test_split(
         texts, y, test_size=0.25, random_state=random_state, stratify=y
     )
 
-    # -------------------------------------------------------------
-    # 1. BASELINE PIPELINE (Raw, uncleaned BoW, imbalanced)
-    # -------------------------------------------------------------
-    baseline_cv = CountVectorizer(lowercase=False, max_features=300)
-    X_train_base = baseline_cv.fit_transform(X_train_raw).toarray()
-    X_test_base = baseline_cv.transform(X_test_raw).toarray()
+    # ─────────────────────────────────────────
+    # BASELINE: Raw BoW → SGD Classifier (imbalanced, uncleaned)
+    # ─────────────────────────────────────────
+    base_cv = CountVectorizer(max_features=500, lowercase=False, strip_accents=None)
+    X_train_bow = base_cv.fit_transform(X_train_raw).toarray()
+    X_test_bow = base_cv.transform(X_test_raw).toarray()
 
-    base_model = LogisticRegression(max_iter=500, random_state=random_state)
-    base_model.fit(X_train_base, y_train)
-    y_pred_base = base_model.predict(X_test_base)
-    y_proba_base = base_model.predict_proba(X_test_base)[:, 1]
+    # SGDClassifier with hinge loss ≡ linear SVM, but different to Webinar 1's LogReg
+    base_model = SGDClassifier(loss="modified_huber", max_iter=100, random_state=random_state, n_jobs=-1)
+    base_model.fit(X_train_bow, y_train)
+    y_pred_base = base_model.predict(X_test_bow)
+    y_proba_base = base_model.predict_proba(X_test_bow)[:, 1]
 
     baseline_metrics = {
         "Accuracy": accuracy_score(y_test, y_pred_base),
         "Precision": precision_score(y_test, y_pred_base, zero_division=0),
         "Recall": recall_score(y_test, y_pred_base, zero_division=0),
         "F1-Score (Macro)": f1_score(y_test, y_pred_base, average="macro", zero_division=0),
-        "F1-Score (Minority)": f1_score(y_test, y_pred_base, pos_label=0, zero_division=0),
+        "F1-Score (Minority)": f1_score(y_test, y_pred_base, pos_label=classes[-1], zero_division=0),
         "ROC-AUC": roc_auc_score(y_test, y_proba_base),
-        "y_true": y_test,
-        "y_pred": y_pred_base,
-        "y_proba": y_proba_base,
-        "confusion_matrix": confusion_matrix(y_test, y_pred_base)
+        "y_true": y_test, "y_pred": y_pred_base, "y_proba": y_proba_base,
+        "confusion_matrix": confusion_matrix(y_test, y_pred_base),
+        "model_name": "SGD Classifier (Baseline, Raw BoW)"
     }
 
-    # -------------------------------------------------------------
-    # 2. PREPROCESSED PIPELINE (Cleaned, TF-IDF + Numerical Feats, SMOTE)
-    # -------------------------------------------------------------
-    # Step A: Cleaning
-    clean_train_texts = batch_clean_texts(X_train_raw)
-    clean_test_texts = batch_clean_texts(X_test_raw)
+    # ─────────────────────────────────────────
+    # PREPROCESSED: Cleaned TF-IDF → LinearSVC (calibrated)
+    # ─────────────────────────────────────────
+    # Step A: Text Cleaning
+    clean_train = batch_clean_texts(X_train_raw)
+    clean_test = batch_clean_texts(X_test_raw)
 
-    # Step B: TF-IDF
-    tfidf = TFIDFProcessor(max_features=300, ngram_range=(1, 2), sublinear_tf=True)
-    X_train_tfidf = tfidf.fit_transform(clean_train_texts)
-    X_test_tfidf = tfidf.transform(clean_test_texts)
+    # Step B: TF-IDF with unigrams + bigrams, sublinear TF
+    tfidf = TFIDFProcessor(max_features=500, ngram_range=(1, 2), sublinear_tf=True)
+    X_train_tfidf = tfidf.fit_transform(clean_train)
+    X_test_tfidf = tfidf.transform(clean_test)
 
-    # Step C: Numerical Feature Extraction & Scaling
-    num_train_df = extract_numerical_text_features(X_train_raw)
-    num_test_df = extract_numerical_text_features(X_test_raw)
-
+    # Step C: Numerical Linguistic Features (scaled)
+    num_train = extract_numerical_text_features(X_train_raw)
+    num_test = extract_numerical_text_features(X_test_raw)
     num_scaler = RobustScaler()
-    X_train_num = num_scaler.fit_transform(num_train_df)
-    X_test_num = num_scaler.transform(num_test_df)
+    X_train_num = num_scaler.fit_transform(num_train)
+    X_test_num = num_scaler.transform(num_test)
 
-    # Step D: Feature Concatenation
+    # Step D: Concatenate TF-IDF + numerical
     X_train_combined = np.hstack([X_train_tfidf, X_train_num])
     X_test_combined = np.hstack([X_test_tfidf, X_test_num])
 
-    # Step E: Handle Imbalance with SMOTE
-    X_train_balanced, y_train_balanced = balance_dataset(
+    # Step E: SMOTE balancing
+    X_train_bal, y_train_bal = balance_dataset(
         pd.DataFrame(X_train_combined), y_train, method="smote", random_state=random_state
     )
 
-    # Step F: Train Tuned Classifier
-    proc_model = LogisticRegression(C=1.5, max_iter=1000, random_state=random_state)
-    proc_model.fit(X_train_balanced, y_train_balanced)
+    # Step F: LinearSVC (calibrated with Platt scaling for predict_proba)
+    svc = LinearSVC(C=1.0, max_iter=2000, random_state=random_state)
+    proc_model = CalibratedClassifierCV(svc, cv=3)
+    proc_model.fit(X_train_bal, y_train_bal)
 
     y_pred_proc = proc_model.predict(X_test_combined)
     y_proba_proc = proc_model.predict_proba(X_test_combined)[:, 1]
@@ -109,27 +122,29 @@ def run_text_pipeline(csv_path="data/text/product_reviews_raw.csv", text_col="re
         "Precision": precision_score(y_test, y_pred_proc, zero_division=0),
         "Recall": recall_score(y_test, y_pred_proc, zero_division=0),
         "F1-Score (Macro)": f1_score(y_test, y_pred_proc, average="macro", zero_division=0),
-        "F1-Score (Minority)": f1_score(y_test, y_pred_proc, pos_label=0, zero_division=0),
+        "F1-Score (Minority)": f1_score(y_test, y_pred_proc, pos_label=classes[-1], zero_division=0),
         "ROC-AUC": roc_auc_score(y_test, y_proba_proc),
-        "y_true": y_test,
-        "y_pred": y_pred_proc,
-        "y_proba": y_proba_proc,
-        "confusion_matrix": confusion_matrix(y_test, y_pred_proc)
+        "y_true": y_test, "y_pred": y_pred_proc, "y_proba": y_proba_proc,
+        "confusion_matrix": confusion_matrix(y_test, y_pred_proc),
+        "model_name": "LinearSVC (Calibrated, Cleaned TF-IDF)"
     }
 
-    # Save cleaned text dataframe
-    df_clean_out = pd.DataFrame({
-        "review_id": df["review_id"],
-        "raw_text": df[text_col],
-        "cleaned_text": batch_clean_texts(df[text_col]),
-        "sentiment": df[target_col]
-    })
-    df_clean_out.to_csv("data/text/product_reviews_clean.csv", index=False)
+    print(f"  Text | Baseline: SGD Classifier → Preprocessed: LinearSVC (Calibrated)")
+    print(f"  Top TF-IDF keywords: {', '.join(tfidf.get_top_keywords(clean_train, top_n=5)['term'].tolist())}")
+
+    # Save cleaned output
+    pd.DataFrame({
+        "doc_id": df["doc_id"],
+        "raw_text": texts,
+        "cleaned_text": batch_clean_texts(texts),
+        "category": df.get("category", y)
+    }).to_csv("data/text/newsgroups_clean.csv", index=False)
 
     return {
         "baseline_metrics": baseline_metrics,
         "preprocessed_metrics": preprocessed_metrics,
-        "tfidf_top_keywords": tfidf.get_top_keywords(clean_train_texts, top_n=10),
+        "tfidf_top_keywords": tfidf.get_top_keywords(clean_train, top_n=10),
         "preprocessed_model": proc_model,
-        "baseline_model": base_model
+        "baseline_model": base_model,
+        "class_names": class_names
     }

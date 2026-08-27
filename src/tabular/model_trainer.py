@@ -1,150 +1,216 @@
 """
-Tabular Model Training Module
-Trains and evaluates baseline models vs fully preprocessed models.
+Tabular Model Training Module — Webinar 2 (UPDATED)
+Algorithms used (DIFFERENT from Webinar 1):
+  - Webinar 1: Logistic Regression, Random Forest
+  - Webinar 2: XGBoost, LightGBM, Gradient Boosting (Ensemble Boosting methods)
+
+Dataset: IBM Telco Customer Churn (Real 7,043 customer records)
 """
 
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                             f1_score, roc_auc_score, confusion_matrix)
+
+try:
+    from xgboost import XGBClassifier
+    XGBOOST_AVAILABLE = True
+except ImportError:
+    XGBOOST_AVAILABLE = False
+
+try:
+    from lightgbm import LGBMClassifier
+    LIGHTGBM_AVAILABLE = True
+except ImportError:
+    LIGHTGBM_AVAILABLE = False
+
+from sklearn.ensemble import GradientBoostingClassifier
 
 from .encoding import clean_raw_tabular_data, TabularEncoder
 from .scaling import TabularScaler
 from .imbalance import balance_dataset
 
 
-def run_tabular_pipeline(csv_path="data/tabular/customer_churn_raw.csv", target_col="churn", random_state=42):
-    """
-    Executes the entire Tabular Preprocessing and Modeling pipeline:
-    1. Loads raw data
-    2. Builds Baseline Model (Raw, unscaled, naive imputation, imbalanced)
-    3. Runs Full Preprocessing:
-       - Cleaning dirty strings and out-of-range records
-       - One-Hot and Ordinal Encoding
-       - Feature Scaling (RobustScaler)
-       - Imbalance handling (SMOTE)
-    4. Trains Preprocessed Model (Logistic Regression & Random Forest)
-    5. Returns evaluation metrics for both Baseline and Preprocessed
-    """
-    df_raw = pd.read_csv(csv_path)
-    
-    # Target encoding: 'Yes' -> 1, 'No' -> 0
-    y_raw = df_raw[target_col].map({"Yes": 1, "No": 0})
-    X_raw_df = df_raw.drop(columns=[target_col, "customer_id"])
-
-    # Split train and test before any processing to prevent leakage
-    X_train_raw, X_test_raw, y_train, y_test = train_test_split(
-        X_raw_df, y_raw, test_size=0.25, random_state=random_state, stratify=y_raw
-    )
-
-    # -------------------------------------------------------------
-    # 1. BASELINE PIPELINE (Naive imputation, no proper scaling/balancing)
-    # -------------------------------------------------------------
-    X_train_base = X_train_raw.copy()
-    X_test_base = X_test_raw.copy()
-
-    # Naively convert or factorize all columns to numeric for baseline model
-    for c in X_train_base.columns:
-        # If it's total_charges or string-formatted numeric, try naive to_numeric first
-        converted_train = pd.to_numeric(X_train_base[c].astype(str).str.extract(r'(\d+\.?\d*)', expand=False), errors="coerce")
-        converted_test = pd.to_numeric(X_test_base[c].astype(str).str.extract(r'(\d+\.?\d*)', expand=False), errors="coerce")
-        
-        if converted_train.notna().sum() > 0.5 * len(X_train_base):
-            # Numeric column with noise
-            X_train_base[c] = converted_train.fillna(0)
-            X_test_base[c] = converted_test.fillna(0)
-        else:
-            # Pure categorical column: naive factorize
-            codes_train, uniques = pd.factorize(X_train_base[c].astype(str).fillna("Missing"))
-            X_train_base[c] = codes_train
-            # Map test using training categories
-            cat_map = {val: i for i, val in enumerate(uniques)}
-            X_test_base[c] = X_test_base[c].astype(str).map(cat_map).fillna(-1)
-
-    X_train_base = X_train_base.astype(float).fillna(0)
-    X_test_base = X_test_base.astype(float).fillna(0)
-
-    # Fit Baseline Model
-    baseline_model = LogisticRegression(max_iter=1000, random_state=random_state)
-    baseline_model.fit(X_train_base, y_train)
-    y_pred_base = baseline_model.predict(X_test_base)
-    y_proba_base = baseline_model.predict_proba(X_test_base)[:, 1]
-
-    baseline_metrics = {
-        "Accuracy": accuracy_score(y_test, y_pred_base),
-        "Precision": precision_score(y_test, y_pred_base, zero_division=0),
-        "Recall": recall_score(y_test, y_pred_base, zero_division=0),
-        "F1-Score (Macro)": f1_score(y_test, y_pred_base, average="macro", zero_division=0),
-        "F1-Score (Minority)": f1_score(y_test, y_pred_base, pos_label=1, zero_division=0),
-        "ROC-AUC": roc_auc_score(y_test, y_proba_base),
+def _eval_metrics(y_test, y_pred, y_proba):
+    return {
+        "Accuracy": accuracy_score(y_test, y_pred),
+        "Precision": precision_score(y_test, y_pred, zero_division=0),
+        "Recall": recall_score(y_test, y_pred, zero_division=0),
+        "F1-Score (Macro)": f1_score(y_test, y_pred, average="macro", zero_division=0),
+        "F1-Score (Minority)": f1_score(y_test, y_pred, pos_label=1, zero_division=0),
+        "ROC-AUC": roc_auc_score(y_test, y_proba),
         "y_true": y_test,
-        "y_pred": y_pred_base,
-        "y_proba": y_proba_base,
-        "confusion_matrix": confusion_matrix(y_test, y_pred_base)
+        "y_pred": y_pred,
+        "y_proba": y_proba,
+        "confusion_matrix": confusion_matrix(y_test, y_pred)
     }
 
-    # -------------------------------------------------------------
-    # 2. FULL PREPROCESSED PIPELINE
-    # -------------------------------------------------------------
-    # Step A: Clean dirty values
-    X_train_clean = clean_raw_tabular_data(X_train_raw)
-    X_test_clean = clean_raw_tabular_data(X_test_raw)
 
-    # Step B: Categorical Encoding
-    nominal_cols = ["payment_method", "internet_service", "tech_support"]
-    ordinal_cols = ["contract_type"]
-    ordinal_order = {"contract_type": ["Month-to-month", "One year", "Two year"]}
+def _prepare_telco_data(csv_path):
+    """Cleans and preps the IBM Telco Customer Churn CSV for encoding."""
+    df = pd.read_csv(csv_path)
+
+    # Drop customerID (identifier, not a feature)
+    if "customerID" in df.columns:
+        df = df.drop(columns=["customerID"])
+
+    # TotalCharges is stored as string (spaces for missing) — convert
+    if "TotalCharges" in df.columns:
+        df["TotalCharges"] = pd.to_numeric(df["TotalCharges"].str.strip(), errors="coerce")
+
+    # Target encoding
+    y = df["Churn"].map({"Yes": 1, "No": 0})
+    X = df.drop(columns=["Churn"])
+    return X, y
+
+
+def run_tabular_pipeline(csv_path="data/tabular/telco_churn_raw.csv", random_state=42):
+    """
+    IBM Telco Customer Churn — Full pipeline with Boosting algorithms.
+
+    ALGORITHMS (Webinar 2 — different from Webinar 1's Logistic Regression + Random Forest):
+    ─────────────────────────────────────────────────────────────────────────────────
+    Baseline:     LogisticRegression         (naive, no preprocessing, imbalanced)
+    Preprocessed: XGBoostClassifier          (if available)
+                  LightGBM Classifier        (if available)
+                  GradientBoostingClassifier (sklearn fallback)
+    ─────────────────────────────────────────────────────────────────────────────────
+
+    Steps:
+    1. Download real IBM Telco dataset (7,043 records)
+    2. Clean dirty strings (TotalCharges whitespace, binary Yes/No columns)
+    3. One-Hot Encode nominals, Ordinal Encode Contract type
+    4. RobustScaler on continuous numerical features
+    5. SMOTE to address ~27% churn class imbalance
+    6. Train XGBoost (or GBM fallback) vs Baseline Logistic Regression
+    """
+    # Load dataset
+    if not pd.io.common.file_exists(csv_path):
+        raise FileNotFoundError(
+            f"Telco Churn dataset not found at {csv_path}. "
+            "Run: python src/data_generators/download_real_datasets.py"
+        )
+
+    X_raw, y = _prepare_telco_data(csv_path)
+
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split(
+        X_raw, y, test_size=0.25, random_state=random_state, stratify=y
+    )
+
+    # ─────────────────────────────────────────
+    # BASELINE: Logistic Regression (naive, no preprocessing)
+    # ─────────────────────────────────────────
+    X_train_b = X_train_raw.copy()
+    X_test_b = X_test_raw.copy()
+
+    for c in X_train_b.columns:
+        conv_tr = pd.to_numeric(X_train_b[c].astype(str).str.extract(r"(\d+\.?\d*)", expand=False), errors="coerce")
+        conv_te = pd.to_numeric(X_test_b[c].astype(str).str.extract(r"(\d+\.?\d*)", expand=False), errors="coerce")
+        if conv_tr.notna().sum() > 0.5 * len(X_train_b):
+            X_train_b[c] = conv_tr.fillna(0)
+            X_test_b[c] = conv_te.fillna(0)
+        else:
+            codes, uniques = pd.factorize(X_train_b[c].astype(str).fillna("Missing"))
+            X_train_b[c] = codes
+            cat_map = {v: i for i, v in enumerate(uniques)}
+            X_test_b[c] = X_test_b[c].astype(str).map(cat_map).fillna(-1)
+
+    X_train_b = X_train_b.astype(float).fillna(0)
+    X_test_b = X_test_b.astype(float).fillna(0)
+
+    base_model = LogisticRegression(max_iter=1000, random_state=random_state)
+    base_model.fit(X_train_b, y_train)
+    y_pred_base = base_model.predict(X_test_b)
+    y_proba_base = base_model.predict_proba(X_test_b)[:, 1]
+    baseline_metrics = _eval_metrics(y_test, y_pred_base, y_proba_base)
+    baseline_metrics["model_name"] = "Logistic Regression (Baseline)"
+
+    # ─────────────────────────────────────────
+    # PREPROCESSED: XGBoost / LightGBM / GBM (Boosting ensemble)
+    # ─────────────────────────────────────────
+    # Detect which binary yes/no cols to handle
+    binary_yes_no = [c for c in X_train_raw.columns
+                     if set(X_train_raw[c].dropna().unique()).issubset({"Yes", "No", "No internet service", "No phone service"})]
+    nominal_cols = [c for c in X_train_raw.select_dtypes("object").columns
+                    if c != "Contract" and c not in binary_yes_no]
+    ordinal_cols = ["Contract"] if "Contract" in X_train_raw.columns else []
+    ordinal_cats = {"Contract": ["Month-to-month", "One year", "Two year"]}
+
+    # Map binary yes/no to 0/1 directly
+    X_train_clean = X_train_raw.copy()
+    X_test_clean = X_test_raw.copy()
+    binary_map = {"Yes": 1, "No": 0, "No internet service": 0, "No phone service": 0}
+    for c in binary_yes_no:
+        X_train_clean[c] = X_train_clean[c].map(binary_map).fillna(0)
+        X_test_clean[c] = X_test_clean[c].map(binary_map).fillna(0)
 
     encoder = TabularEncoder(
         nominal_cols=nominal_cols,
         ordinal_cols=ordinal_cols,
-        ordinal_categories=ordinal_order
+        ordinal_categories=ordinal_cats
     )
-    X_train_encoded = encoder.fit_transform(X_train_clean)
-    X_test_encoded = encoder.transform(X_test_clean)
+    X_train_enc = encoder.fit_transform(X_train_clean)
+    X_test_enc = encoder.transform(X_test_clean)
 
-    # Step C: Feature Scaling
     scaler = TabularScaler(method="robust")
-    X_train_scaled = scaler.fit_transform(X_train_encoded)
-    X_test_scaled = scaler.transform(X_test_encoded)
+    X_train_sc = scaler.fit_transform(X_train_enc)
+    X_test_sc = scaler.transform(X_test_enc)
 
-    # Step D: Handle Class Imbalance (SMOTE on training set only!)
-    X_train_balanced, y_train_balanced = balance_dataset(
-        X_train_scaled, y_train, method="smote", random_state=random_state
-    )
+    X_train_bal, y_train_bal = balance_dataset(X_train_sc, y_train, method="smote", random_state=random_state)
 
-    # Step E: Model Training
-    preprocessed_model = RandomForestClassifier(n_estimators=100, random_state=random_state, max_depth=6)
-    preprocessed_model.fit(X_train_balanced, y_train_balanced)
-    
-    y_pred_proc = preprocessed_model.predict(X_test_scaled)
-    y_proba_proc = preprocessed_model.predict_proba(X_test_scaled)[:, 1]
+    # Select best available boosting classifier
+    if XGBOOST_AVAILABLE:
+        proc_model = XGBClassifier(
+            n_estimators=200, max_depth=5, learning_rate=0.08,
+            subsample=0.8, colsample_bytree=0.8,
+            use_label_encoder=False, eval_metric="logloss",
+            random_state=random_state, verbosity=0
+        )
+        model_name = "XGBoost Classifier"
+    elif LIGHTGBM_AVAILABLE:
+        proc_model = LGBMClassifier(
+            n_estimators=200, max_depth=5, learning_rate=0.08,
+            subsample=0.8, colsample_bytree=0.8,
+            random_state=random_state, verbosity=-1
+        )
+        model_name = "LightGBM Classifier"
+    else:
+        proc_model = GradientBoostingClassifier(
+            n_estimators=150, max_depth=4, learning_rate=0.08,
+            subsample=0.8, random_state=random_state
+        )
+        model_name = "Gradient Boosting Classifier (sklearn)"
 
-    preprocessed_metrics = {
-        "Accuracy": accuracy_score(y_test, y_pred_proc),
-        "Precision": precision_score(y_test, y_pred_proc, zero_division=0),
-        "Recall": recall_score(y_test, y_pred_proc, zero_division=0),
-        "F1-Score (Macro)": f1_score(y_test, y_pred_proc, average="macro", zero_division=0),
-        "F1-Score (Minority)": f1_score(y_test, y_pred_proc, pos_label=1, zero_division=0),
-        "ROC-AUC": roc_auc_score(y_test, y_proba_proc),
-        "y_true": y_test,
-        "y_pred": y_pred_proc,
-        "y_proba": y_proba_proc,
-        "confusion_matrix": confusion_matrix(y_test, y_pred_proc)
-    }
+    proc_model.fit(X_train_bal, y_train_bal)
+    y_pred_proc = proc_model.predict(X_test_sc)
+    y_proba_proc = proc_model.predict_proba(X_test_sc)[:, 1]
+    preprocessed_metrics = _eval_metrics(y_test, y_pred_proc, y_proba_proc)
+    preprocessed_metrics["model_name"] = model_name
 
-    # Save cleaned processed dataframe to disk
-    processed_full_df = pd.concat([X_train_scaled, X_test_scaled], axis=0).reset_index(drop=True)
-    processed_full_df["churn"] = pd.concat([y_train, y_test], axis=0).reset_index(drop=True)
-    processed_full_df.to_csv("data/tabular/customer_churn_processed.csv", index=False)
+    print(f"  Tabular | Baseline: {baseline_metrics['model_name']} → Preprocessed: {model_name}")
+
+    # Save cleaned output
+    os.makedirs("data/tabular", exist_ok=True) if not os.path.exists("data/tabular") else None
+    X_test_sc["Churn"] = y_test.values
+    X_test_sc.to_csv("data/tabular/telco_churn_processed.csv", index=False)
+
+    # Feature importances
+    feat_importances = None
+    if hasattr(proc_model, "feature_importances_"):
+        feat_importances = proc_model.feature_importances_
 
     return {
         "baseline_metrics": baseline_metrics,
         "preprocessed_metrics": preprocessed_metrics,
         "feature_names": encoder.feature_names_out_,
-        "feature_importances": preprocessed_model.feature_importances_,
-        "preprocessed_model": preprocessed_model,
-        "baseline_model": baseline_model
+        "feature_importances": feat_importances,
+        "preprocessed_model": proc_model,
+        "baseline_model": base_model,
+        "model_name": model_name
     }
+
+
+import os

@@ -1,6 +1,10 @@
 """
-Image PCA Dimensionality Reduction & Modeling Module
-Applies PCA to flatten normalized image features, analyzes variance, and benchmarks classification.
+Image PCA & Modeling Pipeline — Webinar 2 (UPDATED)
+Algorithms used (DIFFERENT from Webinar 1):
+  - Webinar 1: Logistic Regression on pixel features
+  - Webinar 2: SVM (RBF kernel) + KNeighborsClassifier on PCA-reduced features
+
+Dataset: MNIST Handwritten Digits (real human handwriting — digits 0, 1, 2)
 """
 
 import os
@@ -8,9 +12,13 @@ import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                             f1_score, confusion_matrix)
 
 from .loading import load_image_dataset
 from .resizing import batch_resize_images
@@ -22,7 +30,7 @@ class ImagePCA:
     PCA transformer for image feature compression:
     - Fits PCA on flattened image vectors
     - Calculates cumulative explained variance
-    - Reduces high-dimensional raw pixel space (e.g. 64x64x3 = 12,288 dims) to compact representation (e.g. 30-50 dims)
+    - Reduces high-dimensional raw pixel space to compact representation
     - Supports inverse reconstruction back to image pixel space
     """
     def __init__(self, n_components=0.95, random_state=42):
@@ -45,11 +53,9 @@ class ImagePCA:
         return self.fit(X).transform(X)
 
     def inverse_transform(self, X_reduced: np.ndarray) -> np.ndarray:
-        """Reconstructs flattened image vectors from PCA reduced space."""
         return self.pca.inverse_transform(X_reduced)
 
     def get_variance_summary(self, top_k=10) -> pd.DataFrame:
-        """Returns summary table of top principal components variance."""
         k = min(top_k, len(self.explained_variance_ratio_))
         return pd.DataFrame({
             "Principal Component": [f"PC_{i+1}" for i in range(k)],
@@ -58,24 +64,29 @@ class ImagePCA:
         })
 
 
-def run_image_pipeline(root_dir="data/image/raw", target_size=(64, 64), n_components=0.95, random_state=42):
+def run_image_pipeline(root_dir="data/image/raw", target_size=(28, 28), n_components=0.95, random_state=42):
     """
-    Executes the entire Image Preprocessing & Modeling Pipeline:
-    1. Loads multi-class images (arbitrary raw resolutions)
-    2. Builds Baseline Model:
-       - Naive direct resize without aspect preservation, raw [0, 255] pixels, all 12,288 dimensions
-       - Basic classifier
-    3. Runs Full Preprocessed Pipeline:
-       - Aspect-ratio preserving letterboxing resize
-       - Min-Max pixel intensity normalization [0.0, 1.0]
-       - PCA Dimensionality Reduction (retaining specified variance threshold)
-       - Trains Classifier on Reduced Features
-    4. Evaluates and compares performance, dimensions, and execution efficiency.
+    MNIST Handwritten Digits (0, 1, 2) — Full Image Preprocessing pipeline with SVM & KNN.
+
+    ALGORITHMS (Webinar 2 — different from Webinar 1):
+    ─────────────────────────────────────────────────────────────────────────────────
+    Baseline:     Raw pixel features (28×28 = 784 dims, unscaled)
+                  → LogisticRegression (100 iterations only, struggles on raw pixels)
+    Preprocessed: Normalized + PCA-Reduced features (≤30 dims, 95% variance)
+                  → SVM with RBF Kernel (support vector classification)
+                  → K-Nearest Neighbors (KNN, k=5) on PCA features
+    ─────────────────────────────────────────────────────────────────────────────────
+
+    Steps:
+    1. Load MNIST digit images (real handwritten digits 0, 1, 2)
+    2. Standardize resolution (letterboxing to 28×28)
+    3. Normalize pixels [0, 255] → [0.0, 1.0]
+    4. PCA to retain 95% variance → drastically reduce dimensions
+    5. SVM RBF vs KNN vs Baseline Logistic Regression
     """
     raw_images, labels, file_paths, class_to_idx = load_image_dataset(root_dir)
     y_encoded = np.array([class_to_idx[lbl] for lbl in labels])
 
-    # Split indices
     indices = np.arange(len(raw_images))
     train_idx, test_idx = train_test_split(indices, test_size=0.25, random_state=random_state, stratify=y_encoded)
 
@@ -84,16 +95,15 @@ def run_image_pipeline(root_dir="data/image/raw", target_size=(64, 64), n_compon
     y_train = y_encoded[train_idx]
     y_test = y_encoded[test_idx]
 
-    # -------------------------------------------------------------
-    # 1. BASELINE PIPELINE (Raw unscaled direct resize, all pixels)
-    # -------------------------------------------------------------
-    train_resized_base = batch_resize_images(train_images, target_size=target_size, preserve_aspect=False)
-    test_resized_base = batch_resize_images(test_images, target_size=target_size, preserve_aspect=False)
+    # ─────────────────────────────────────────
+    # BASELINE: Raw unscaled pixels → Logistic Regression
+    # ─────────────────────────────────────────
+    train_base = batch_resize_images(train_images, target_size=target_size, preserve_aspect=False)
+    test_base = batch_resize_images(test_images, target_size=target_size, preserve_aspect=False)
+    X_train_raw_arr = flatten_images(images_to_numpy(train_base))  # raw [0, 255]
+    X_test_raw_arr = flatten_images(images_to_numpy(test_base))
 
-    X_train_raw_arr = flatten_images(images_to_numpy(train_resized_base))  # Raw [0, 255]
-    X_test_raw_arr = flatten_images(images_to_numpy(test_resized_base))
-
-    base_clf = LogisticRegression(max_iter=100, random_state=random_state)
+    base_clf = LogisticRegression(max_iter=100, random_state=random_state, solver="saga")
     base_clf.fit(X_train_raw_arr, y_train)
     y_pred_base = base_clf.predict(X_test_raw_arr)
 
@@ -103,42 +113,63 @@ def run_image_pipeline(root_dir="data/image/raw", target_size=(64, 64), n_compon
         "Recall": recall_score(y_test, y_pred_base, average="macro", zero_division=0),
         "F1-Score (Macro)": f1_score(y_test, y_pred_base, average="macro", zero_division=0),
         "Feature Dimensions": X_train_raw_arr.shape[1],
-        "confusion_matrix": confusion_matrix(y_test, y_pred_base)
+        "confusion_matrix": confusion_matrix(y_test, y_pred_base),
+        "model_name": "Logistic Regression (Baseline, Raw Pixels)"
     }
 
-    # -------------------------------------------------------------
-    # 2. PREPROCESSED PIPELINE (Aspect-preserving resize, [0,1] normalization, PCA)
-    # -------------------------------------------------------------
-    train_resized_proc = batch_resize_images(train_images, target_size=target_size, preserve_aspect=True)
-    test_resized_proc = batch_resize_images(test_images, target_size=target_size, preserve_aspect=True)
+    # ─────────────────────────────────────────
+    # PREPROCESSED: Normalized + PCA → SVM (RBF) + KNN
+    # ─────────────────────────────────────────
+    train_proc = batch_resize_images(train_images, target_size=target_size, preserve_aspect=True)
+    test_proc = batch_resize_images(test_images, target_size=target_size, preserve_aspect=True)
 
-    X_train_norm = normalize_minmax(images_to_numpy(train_resized_proc))
-    X_test_norm = normalize_minmax(images_to_numpy(test_resized_proc))
-
+    X_train_norm = normalize_minmax(images_to_numpy(train_proc))
+    X_test_norm = normalize_minmax(images_to_numpy(test_proc))
     X_train_flat = flatten_images(X_train_norm)
     X_test_flat = flatten_images(X_test_norm)
 
-    # Fit PCA
+    # PCA
     image_pca = ImagePCA(n_components=n_components, random_state=random_state)
     X_train_pca = image_pca.fit_transform(X_train_flat)
     X_test_pca = image_pca.transform(X_test_flat)
 
-    # Train Classifier on Reduced Features
-    proc_clf = RandomForestClassifier(n_estimators=100, random_state=random_state, max_depth=6)
-    proc_clf.fit(X_train_pca, y_train)
-    y_pred_proc = proc_clf.predict(X_test_pca)
+    # Scale PCA features for SVM
+    feat_scaler = StandardScaler()
+    X_train_pca_sc = feat_scaler.fit_transform(X_train_pca)
+    X_test_pca_sc = feat_scaler.transform(X_test_pca)
 
+    # SVM with RBF kernel
+    svm_clf = SVC(kernel="rbf", C=10.0, gamma="scale", probability=True, random_state=random_state)
+    svm_clf.fit(X_train_pca_sc, y_train)
+    y_pred_svm = svm_clf.predict(X_test_pca_sc)
+
+    # KNN (k=5) on PCA features
+    knn_clf = KNeighborsClassifier(n_neighbors=5, metric="euclidean")
+    knn_clf.fit(X_train_pca, y_train)
+    y_pred_knn = knn_clf.predict(X_test_pca)
+
+    # Use SVM as the "preprocessed" result (typically better on compact PCA features)
     preprocessed_metrics = {
-        "Accuracy": accuracy_score(y_test, y_pred_proc),
-        "Precision": precision_score(y_test, y_pred_proc, average="macro", zero_division=0),
-        "Recall": recall_score(y_test, y_pred_proc, average="macro", zero_division=0),
-        "F1-Score (Macro)": f1_score(y_test, y_pred_proc, average="macro", zero_division=0),
-        "Feature Dimensions": X_train_pca.shape[1],
-        "Dimensionality Reduction": f"{(1 - (X_train_pca.shape[1] / X_train_raw_arr.shape[1])) * 100:.1f}%",
-        "confusion_matrix": confusion_matrix(y_test, y_pred_proc)
+        "Accuracy": accuracy_score(y_test, y_pred_svm),
+        "Precision": precision_score(y_test, y_pred_svm, average="macro", zero_division=0),
+        "Recall": recall_score(y_test, y_pred_svm, average="macro", zero_division=0),
+        "F1-Score (Macro)": f1_score(y_test, y_pred_svm, average="macro", zero_division=0),
+        "Feature Dimensions": X_train_pca_sc.shape[1],
+        "Dimensionality Reduction": f"{(1 - X_train_pca_sc.shape[1]/X_train_raw_arr.shape[1])*100:.1f}%",
+        "confusion_matrix": confusion_matrix(y_test, y_pred_svm),
+        "model_name": "SVM RBF Kernel (Preprocessed, PCA)"
     }
 
-    # Save processed PCA features to processed directory
+    knn_metrics = {
+        "Accuracy": accuracy_score(y_test, y_pred_knn),
+        "F1-Score (Macro)": f1_score(y_test, y_pred_knn, average="macro", zero_division=0),
+        "confusion_matrix": confusion_matrix(y_test, y_pred_knn),
+        "model_name": "KNN (k=5, PCA Features)"
+    }
+
+    print(f"  Image | Baseline: Logistic Regression (raw {X_train_raw_arr.shape[1]} dims) "
+          f"→ Preprocessed: SVM RBF ({X_train_pca_sc.shape[1]} PCA dims)")
+
     os.makedirs("data/image/processed", exist_ok=True)
     np.save("data/image/processed/image_pca_features.npy", X_train_pca)
     np.save("data/image/processed/image_labels.npy", y_train)
@@ -146,6 +177,7 @@ def run_image_pipeline(root_dir="data/image/raw", target_size=(64, 64), n_compon
     return {
         "baseline_metrics": baseline_metrics,
         "preprocessed_metrics": preprocessed_metrics,
+        "knn_metrics": knn_metrics,
         "image_pca": image_pca,
         "classes": list(class_to_idx.keys()),
         "sample_original": X_test_flat[0],
