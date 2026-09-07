@@ -7,6 +7,7 @@ Algorithms used (DIFFERENT from Webinar 1):
 Dataset: 20 Newsgroups (real internet forum posts — sci.med vs alt.atheism)
 """
 
+import os
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
@@ -133,12 +134,14 @@ def run_text_pipeline(csv_path="data/text/newsgroups_raw.csv",
     print(f"  Top TF-IDF keywords: {', '.join(tfidf.get_top_keywords(clean_train, top_n=5)['term'].tolist())}")
 
     # Save cleaned output
+    out_dir = os.path.dirname(os.path.normpath(csv_path)) if csv_path and os.path.dirname(os.path.normpath(csv_path)) else "data/text"
+    os.makedirs(out_dir, exist_ok=True)
     pd.DataFrame({
         "doc_id": df["doc_id"],
         "raw_text": texts,
         "cleaned_text": batch_clean_texts(texts),
         "category": df.get("category", y)
-    }).to_csv("data/text/newsgroups_clean.csv", index=False)
+    }).to_csv(os.path.join(out_dir, "newsgroups_clean.csv"), index=False)
 
     return {
         "baseline_metrics": baseline_metrics,

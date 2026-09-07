@@ -170,9 +170,10 @@ def run_image_pipeline(root_dir="data/image/raw", target_size=(28, 28), n_compon
     print(f"  Image | Baseline: Logistic Regression (raw {X_train_raw_arr.shape[1]} dims) "
           f"-> Preprocessed: SVM RBF ({X_train_pca_sc.shape[1]} PCA dims)")
 
-    os.makedirs("data/image/processed", exist_ok=True)
-    np.save("data/image/processed/image_pca_features.npy", X_train_pca)
-    np.save("data/image/processed/image_labels.npy", y_train)
+    proc_dir = os.path.join(os.path.dirname(os.path.normpath(root_dir)), "processed") if root_dir else "data/image/processed"
+    os.makedirs(proc_dir, exist_ok=True)
+    np.save(os.path.join(proc_dir, "image_pca_features.npy"), X_train_pca)
+    np.save(os.path.join(proc_dir, "image_labels.npy"), y_train)
 
     return {
         "baseline_metrics": baseline_metrics,

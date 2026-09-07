@@ -193,9 +193,10 @@ def run_tabular_pipeline(csv_path="data/tabular/telco_churn_raw.csv", random_sta
     print(f"  Tabular | Baseline: {baseline_metrics['model_name']} -> Preprocessed: {model_name}")
 
     # Save cleaned output
-    os.makedirs("data/tabular", exist_ok=True) if not os.path.exists("data/tabular") else None
+    out_dir = os.path.dirname(os.path.normpath(csv_path)) if csv_path and os.path.dirname(os.path.normpath(csv_path)) else "data/tabular"
+    os.makedirs(out_dir, exist_ok=True)
     X_test_sc["Churn"] = y_test.values
-    X_test_sc.to_csv("data/tabular/telco_churn_processed.csv", index=False)
+    X_test_sc.to_csv(os.path.join(out_dir, "telco_churn_processed.csv"), index=False)
 
     # Feature importances
     feat_importances = None

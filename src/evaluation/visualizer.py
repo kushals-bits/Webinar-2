@@ -193,20 +193,30 @@ def plot_confusion_matrices(tabular_res: dict, text_res: dict, image_res: dict, 
     print(f"-> Saved confusion matrices to: {output_path}")
 
 
-def generate_all_report_visuals(tabular_res: dict, text_res: dict, image_res: dict, master_df: pd.DataFrame):
+def generate_all_report_visuals(tabular_res: dict, text_res: dict, image_res: dict, master_df: pd.DataFrame, reports_dir: str = None):
     """Generates all 4 visual report charts and saves them to reports/."""
     print("Generating comprehensive visual report charts...")
-    plot_before_vs_after_benchmarks(master_df)
+    if reports_dir is None:
+        reports_dir = "reports" if os.path.isdir("reports") else ("../reports" if os.path.isdir("../reports") else "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+
+    plot_before_vs_after_benchmarks(master_df, output_path=os.path.join(reports_dir, "before_vs_after_benchmarks.png"))
     
     # Load raw tabular for scaling demo
     if os.path.exists("data/tabular/telco_churn_raw.csv"):
         df_raw = pd.read_csv("data/tabular/telco_churn_raw.csv")
         num_col = "MonthlyCharges" if "MonthlyCharges" in df_raw.columns else df_raw.select_dtypes(include=[np.number]).columns[0]
-    else:
+    elif os.path.exists("../data/tabular/telco_churn_raw.csv"):
+        df_raw = pd.read_csv("../data/tabular/telco_churn_raw.csv")
+        num_col = "MonthlyCharges" if "MonthlyCharges" in df_raw.columns else df_raw.select_dtypes(include=[np.number]).columns[0]
+    elif os.path.exists("data/tabular/customer_churn_raw.csv"):
         df_raw = pd.read_csv("data/tabular/customer_churn_raw.csv")
         num_col = "monthly_charges" if "monthly_charges" in df_raw.columns else df_raw.select_dtypes(include=[np.number]).columns[0]
+    else:
+        df_raw = pd.read_csv("../data/tabular/customer_churn_raw.csv")
+        num_col = "monthly_charges" if "monthly_charges" in df_raw.columns else df_raw.select_dtypes(include=[np.number]).columns[0]
 
-    plot_tabular_scaling_and_outliers(df_raw, num_col=num_col)
-    plot_image_pca_and_reconstruction(image_res)
-    plot_confusion_matrices(tabular_res, text_res, image_res)
-    print("All visual reports generated in 'reports/'!")
+    plot_tabular_scaling_and_outliers(df_raw, num_col=num_col, output_path=os.path.join(reports_dir, "tabular_scaling_and_outliers.png"))
+    plot_image_pca_and_reconstruction(image_res, output_path=os.path.join(reports_dir, "image_pca_and_reconstruction.png"))
+    plot_confusion_matrices(tabular_res, text_res, image_res, output_path=os.path.join(reports_dir, "confusion_matrices_comparison.png"))
+    print(f"All visual reports generated in '{reports_dir}/'!")
