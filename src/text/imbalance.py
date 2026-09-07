@@ -8,8 +8,10 @@ Dataset: 20 Newsgroups (real internet forum posts — sci.med vs alt.atheism)
 """
 
 import os
+import warnings
 import numpy as np
 import pandas as pd
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.model_selection import train_test_split
 from sklearn.svm import LinearSVC
 from sklearn.naive_bayes import ComplementNB
@@ -65,8 +67,10 @@ def run_text_pipeline(csv_path="data/text/newsgroups_raw.csv",
     X_test_bow = base_cv.transform(X_test_raw).toarray()
 
     # SGDClassifier with hinge loss ≡ linear SVM, but different to Webinar 1's LogReg
-    base_model = SGDClassifier(loss="modified_huber", max_iter=100, random_state=random_state, n_jobs=-1)
-    base_model.fit(X_train_bow, y_train)
+    base_model = SGDClassifier(loss="modified_huber", max_iter=1000, tol=1e-3, random_state=random_state, n_jobs=-1)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        base_model.fit(X_train_bow, y_train)
     y_pred_base = base_model.predict(X_test_bow)
     y_proba_base = base_model.predict_proba(X_test_bow)[:, 1]
 

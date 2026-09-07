@@ -7,8 +7,10 @@ Algorithms used (DIFFERENT from Webinar 1):
 Dataset: IBM Telco Customer Churn (Real 7,043 customer records)
 """
 
+import warnings
 import numpy as np
 import pandas as pd
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
@@ -122,7 +124,9 @@ def run_tabular_pipeline(csv_path="data/tabular/telco_churn_raw.csv", random_sta
     X_test_b = X_test_b.astype(float).fillna(0)
 
     base_model = LogisticRegression(max_iter=1000, random_state=random_state)
-    base_model.fit(X_train_b, y_train)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        base_model.fit(X_train_b, y_train)
     y_pred_base = base_model.predict(X_test_b)
     y_proba_base = base_model.predict_proba(X_test_b)[:, 1]
     baseline_metrics = _eval_metrics(y_test, y_pred_base, y_proba_base)

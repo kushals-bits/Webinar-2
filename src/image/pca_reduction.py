@@ -8,8 +8,10 @@ Dataset: MNIST Handwritten Digits (real human handwriting — digits 0, 1, 2)
 """
 
 import os
+import warnings
 import numpy as np
 import pandas as pd
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
@@ -103,8 +105,10 @@ def run_image_pipeline(root_dir="data/image/raw", target_size=(28, 28), n_compon
     X_train_raw_arr = flatten_images(images_to_numpy(train_base))  # raw [0, 255]
     X_test_raw_arr = flatten_images(images_to_numpy(test_base))
 
-    base_clf = LogisticRegression(max_iter=100, random_state=random_state, solver="saga")
-    base_clf.fit(X_train_raw_arr, y_train)
+    base_clf = LogisticRegression(max_iter=200, random_state=random_state, solver="saga")
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        base_clf.fit(X_train_raw_arr, y_train)
     y_pred_base = base_clf.predict(X_test_raw_arr)
 
     baseline_metrics = {
@@ -139,7 +143,7 @@ def run_image_pipeline(root_dir="data/image/raw", target_size=(28, 28), n_compon
     X_test_pca_sc = feat_scaler.transform(X_test_pca)
 
     # SVM with RBF kernel
-    svm_clf = SVC(kernel="rbf", C=10.0, gamma="scale", probability=True, random_state=random_state)
+    svm_clf = SVC(kernel="rbf", C=10.0, gamma="scale", random_state=random_state)
     svm_clf.fit(X_train_pca_sc, y_train)
     y_pred_svm = svm_clf.predict(X_test_pca_sc)
 
